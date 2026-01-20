@@ -396,16 +396,46 @@ def main():
             max_process = 5
             print(f"Processing up to {max_process} cards...")
             
-            for i in range(max_process):
+            attempted_identifiers = set()
+            processed_count = 0
+            
+            while processed_count < max_process:
                 # Re-fetch cards every time because the page might have reloaded
                 indices, cards_locator = get_valid_cards(page)
                 
-                if not indices or i >= len(indices):
-                    print(f"No more valid cards found at index {i}.")
+                if not indices:
+                    print("No valid cards found.")
                     break
-                    
-                card_index = indices[i]
-                process_job_application(context, page, cards_locator.nth(card_index), i)
+                
+                target_index = None
+                target_card = None
+                
+                # Find the first valid card that hasn't been attempted
+                for idx in indices:
+                    try:
+                        card = cards_locator.nth(idx)
+                        # Extract identifier to track duplicates/already processed
+                        # Use first() to be safe, though get_valid_cards checks existence
+                        title = card.locator(".title").first.inner_text().strip()
+                        company = card.locator(".comp-name").first.inner_text().strip()
+                        identifier = f"{title}|{company}"
+                        
+                        if identifier not in attempted_identifiers:
+                            target_index = idx
+                            target_card = card
+                            attempted_identifiers.add(identifier)
+                            break
+                    except Exception as e:
+                        print(f"Skipping index {idx} due to error reading details: {e}")
+                        continue
+                
+                if target_index is None:
+                    print("All currently valid cards have been attempted in this session.")
+                    break
+                
+                # Process the found card
+                process_job_application(context, page, target_card, processed_count)
+                processed_count += 1
                 random_sleep()
                 
             print("\nAutomation sequence complete.")
